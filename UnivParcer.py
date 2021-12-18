@@ -1,15 +1,41 @@
 from tkinter import *
 from tkinter import scrolledtext
 from tkinter.ttk import Radiobutton
+import threading
+from threading import Thread
 from parclas import Parcer
+
 class Parcer_app(Tk):
     def __init__(self):
         super().__init__()
+        
+        # Настройки окна
+        self.program_name = "UnivParcer 0.1a-1"
         self.geometry("480x240")
-        self.resizable(width = False, height = False)
-        self.title("UnivParcer")
+        #self.resizable(width = False, height = False)
+        self.title(self.program_name)
         
+        # Меню
+        self.menu = Menu(self)
         
+        # Меню UnivParcer
+        self.file_menu = Menu(self.menu,tearoff = 0)
+        self.file_menu.add_command(label = "Exit", command = self.destroy)
+        self.menu.add_cascade(label = "UnivParcer", menu = self.file_menu)
+        
+        # Меню Plugins
+        self.plugins_menu = Menu(self.menu,tearoff = 0)
+        self.plugins_menu.add_command(label = "Get Plugin")
+        self.menu.add_cascade(label = "Plugins", menu = self.plugins_menu)
+        
+        # Меню Help
+        self.help_menu = Menu(self.menu, tearoff = 0)
+        self.help_menu.add_command(label = "Tutorial")
+        self.help_menu.add_command(label = "About UnivParcer")
+        self.help_menu.add_command(label = "About Me")
+        self.menu.add_cascade(label = "Help",menu = self.help_menu)
+        
+        self.config(menu=self.menu)
         ###### Рамка для иструментов ######
         self.fun_frame_url = Frame(self,bd = 2, highlightbackground = "#4d4d4d", highlightthickness = 1)
         self.fun_frame_url.pack(side = TOP)
@@ -54,7 +80,7 @@ class Parcer_app(Tk):
         self.class_text.grid(column = 6, row = 0)
 
         # Кнопка Search
-        self.parcer_button = Button(self.fun_frame_url, text = "Search",command = self.do_parser)
+        self.parcer_button = Button(self.fun_frame_url, text = "Search",command = self.do_parser_thread)
         self.parcer_button.grid(column = 7, row = 0)
 
         # Текстовое поле для вывода
@@ -86,20 +112,23 @@ class Parcer_app(Tk):
         self.save_text = Entry(self.save_frame, width = 15)
         self.save_text.grid(column = 0, row = 0)
 
-        self.change_button = Button(self.page_change_frame, text = "Page", command = self.change_page)
+        self.change_button = Button(self.page_change_frame, text = "Page", command = self.change_page_thread)
         self.change_button.grid(column = 0, row = 0)
 
         self.text_changer = Entry(self.page_change_frame, width = 15)
         self.text_changer.grid(column = 1, row = 0)
     
+    # Парсер одной страницы
     def do_parser(self):
-        self.text.delete("1.0","end")
-        pars = Parcer()
         
+        self.text.delete("1.0","end")
+        
+        pars = Parcer()
         
         pars.url = self.url_text.get()
         pars.element = self.element_text.get()
         pars.cls = self.class_text.get()
+        
         self.mode = self.rad_var.get()
         self.content = ""
         
@@ -113,46 +142,89 @@ class Parcer_app(Tk):
             self.content = pars.find_text()
             self.text.insert(3.0, self.content)
     
+    # Сохранение
     def save_to_file(self):
+        
         if self.text_changer.get() == "":
             if self.save_text.get() != "":
                 f = open(self.save_text.get(),'a',encoding = "utf-8" )
                 f.write(str(self.content))
                 f.close()
+        
         elif self.change_content != "":
             if self.save_text.get() != "":
                 f = open(self.save_text.get(),'a', encoding = "utf-8")
                 f.write(str(self.change_content))
                 f.close()
 
+    # Парсер множества страниц
     def change_page(self):
+        
         self.text.delete("1.0","end")
-        pars = Parcer()
+        
         self.change = self.text_changer.get()
-        self.change = self.change.split(',')
-        
-        
+        if "-" not in self.change:
+            self.change = self.change.split(',')
+        elif "-" in self.change:
+            self.change = self.change.split('-')
+            self.change = list(range(int(self.change[0]),int(self.change[1]) + 1))
+        pars = Parcer()
         pars.element = self.element_text.get()
         pars.cls = self.class_text.get()
+        
         self.mode = self.rad_var.get()
         self.change_content = ""
+        
         cyc = 0
         
         for cha in self.change:
+            
             pars.url = self.url_text.get() + str(cha)
+            
             if self.mode == 1:
+                cyc += 1
+                
+                loading = self.program_name + " | Loading " + str(cyc) + "/" + str(len(self.change))
+                self.title(loading)
+
                 self.content = pars.show_links()
                 self.text.insert(3.0, self.content)
+            
             elif self.mode == 2:
+                cyc += 1
+                
+                loading = self.program_name + " | Loading " + str(cyc) + "/" + str(len(self.change))
+                self.title(loading)
+
                 self.content = pars.find_clear()
                 self.text.insert(3.0, self.content)
+
             elif self.mode == 3:
+                cyc += 1
+                
+                loading = self.program_name + " | Loading " + str(cyc) + "/" + str(len(self.change))
+                self.title(loading)
+                
                 self.content = pars.find_text()
                 self.text.insert(3.0, self.content)
+
+            
             self.change_content += self.content
+        
         self.text.delete("1.0","end")
         self.text.insert(3.0, self.change_content)
-
+        
+        self.title(self.program_name)
+    
+    # Поток парсера множетсва страниц
+    def change_page_thread(self):
+        thread = Thread(target = self.change_page)
+        thread.start()
+    
+    # Поток парсера одной страницы
+    def do_parser_thread(self):
+        thread = Thread(target = self.do_parser)
+        thread.start()
 
 
 if __name__ == "__main__":
